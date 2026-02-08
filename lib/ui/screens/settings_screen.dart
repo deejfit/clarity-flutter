@@ -44,21 +44,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _load() async {
-    await _notificationService.initialize();
-    final enabled = await _settingsStorage.getNotificationsEnabled();
-    final hour = await _settingsStorage.getNotificationHour();
-    final minute = await _settingsStorage.getNotificationMinute();
-    final supported = await _notificationService.isSupported;
-    final versionBuild = await _appInfoService.getVersionAndBuild();
-    if (mounted) {
-      setState(() {
-        _notificationsEnabled = enabled;
-        _notificationHour = hour;
-        _notificationMinute = minute;
-        _notificationsSupported = supported;
-        _versionBuild = versionBuild;
-        _loading = false;
-      });
+    try {
+      await _notificationService.initialize();
+      final enabled = await _settingsStorage.getNotificationsEnabled();
+      final hour = await _settingsStorage.getNotificationHour();
+      final minute = await _settingsStorage.getNotificationMinute();
+      final supported = await _notificationService.isSupported;
+      final versionBuild = await _appInfoService.getVersionAndBuild();
+      if (mounted) {
+        setState(() {
+          _notificationsEnabled = enabled;
+          _notificationHour = hour;
+          _notificationMinute = minute;
+          _notificationsSupported = supported;
+          _versionBuild = versionBuild;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        final supported = await _notificationService.isSupported;
+        if (mounted) {
+          setState(() {
+            _notificationsEnabled = false;
+            _notificationHour = 9;
+            _notificationMinute = 0;
+            _notificationsSupported = supported;
+            _versionBuild = '—';
+            _loading = false;
+          });
+        }
+      }
     }
   }
 

@@ -23,17 +23,29 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _loading = true;
 
   Future<void> _load() async {
-    final streakData = await _repo.getStreakData();
-    final stats = await _repo.getStats();
-    final answered = await _repo.isAnsweredToday();
-    if (mounted) {
-      setState(() {
-        _streakData = streakData;
-        _stats = stats;
-        _answeredToday = answered;
-        _loading = false;
-      });
-      if (!_answeredToday) _showCheckInModal();
+    try {
+      final streakData = await _repo.getStreakData();
+      final stats = await _repo.getStats();
+      final answered = await _repo.isAnsweredToday();
+      if (mounted) {
+        setState(() {
+          _streakData = streakData;
+          _stats = stats;
+          _answeredToday = answered;
+          _loading = false;
+        });
+        if (!_answeredToday) _showCheckInModal();
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _streakData = StreakData(currentStreak: 0, streakStartDate: null, streakDates: []);
+          _stats = const AppStats(daysAlcoholFree: 0, bestStreak: 0, checkInsCompleted: 0, currentRunStarted: null);
+          _answeredToday = false;
+          _loading = false;
+        });
+        _showCheckInModal();
+      }
     }
   }
 

@@ -1,5 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'prefs_loader.dart';
+
 const String _keySoberDates = 'sober_dates';
 const String _keyAnsweredDates = 'answered_dates';
 
@@ -14,41 +16,61 @@ class CheckInStorageImpl implements CheckInStorage {
   CheckInStorageImpl({SharedPreferences? prefs}) : _prefs = prefs;
 
   SharedPreferences? _prefs;
+  final Map<String, List<String>> _memoryFallback = {};
 
-  Future<SharedPreferences> get _instance async {
-    _prefs ??= await SharedPreferences.getInstance();
-    return _prefs!;
+  Future<SharedPreferences?> get _instance async {
+    if (_prefs != null) return _prefs;
+    _prefs = await getSharedPreferencesSafe();
+    return _prefs;
   }
 
   @override
   Future<List<String>> getSoberDates() async {
     final prefs = await _instance;
-    final list = prefs.getStringList(_keySoberDates);
-    return list ?? [];
+    if (prefs != null) {
+      final list = prefs.getStringList(_keySoberDates);
+      return list ?? [];
+    }
+    return List<String>.from(_memoryFallback[_keySoberDates] ?? []);
   }
 
   @override
   Future<List<String>> getAnsweredDates() async {
     final prefs = await _instance;
-    final list = prefs.getStringList(_keyAnsweredDates);
-    return list ?? [];
+    if (prefs != null) {
+      final list = prefs.getStringList(_keyAnsweredDates);
+      return list ?? [];
+    }
+    return List<String>.from(_memoryFallback[_keyAnsweredDates] ?? []);
   }
 
   @override
   Future<void> recordAnswer(String date, bool sober) async {
     final prefs = await _instance;
-    final answered = prefs.getStringList(_keyAnsweredDates) ?? [];
+    final answered = prefs != null
+        ? (prefs.getStringList(_keyAnsweredDates) ?? [])
+        : List<String>.from(_memoryFallback[_keyAnsweredDates] ?? []);
     if (!answered.contains(date)) {
       answered.add(date);
       answered.sort();
-      await prefs.setStringList(_keyAnsweredDates, answered);
+      if (prefs != null) {
+        await prefs.setStringList(_keyAnsweredDates, answered);
+      } else {
+        _memoryFallback[_keyAnsweredDates] = answered;
+      }
     }
     if (sober) {
-      final soberList = prefs.getStringList(_keySoberDates) ?? [];
+      final soberList = prefs != null
+          ? (prefs.getStringList(_keySoberDates) ?? [])
+          : List<String>.from(_memoryFallback[_keySoberDates] ?? []);
       if (!soberList.contains(date)) {
         soberList.add(date);
         soberList.sort();
-        await prefs.setStringList(_keySoberDates, soberList);
+        if (prefs != null) {
+          await prefs.setStringList(_keySoberDates, soberList);
+        } else {
+          _memoryFallback[_keySoberDates] = soberList;
+        }
       }
     }
   }
