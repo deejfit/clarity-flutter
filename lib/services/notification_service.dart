@@ -21,6 +21,7 @@ class NotificationServiceImpl implements NotificationService {
 
   final FlutterLocalNotificationsPlugin _plugin;
   bool _initialized = false;
+  bool _failed = false;
 
   @override
   Future<bool> get isSupported async {
@@ -33,83 +34,105 @@ class NotificationServiceImpl implements NotificationService {
   Future<void> initialize() async {
     if (kIsWeb) return;
     if (!await isSupported) return;
-    if (_initialized) return;
-
-    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const darwin = DarwinInitializationSettings();
-    const settings = InitializationSettings(
-      android: android,
-      iOS: darwin,
-    );
-    await _plugin.initialize(
-      settings: settings,
-      onDidReceiveNotificationResponse: (_) {},
-    );
-    _initialized = true;
+    if (_initialized || _failed) return;
 
     try {
-      tz.initializeTimeZones();
-      final info = await FlutterTimezone.getLocalTimezone();
-      tz.setLocalLocation(tz.getLocation(info.identifier));
+      const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const darwin = DarwinInitializationSettings();
+      const settings = InitializationSettings(
+        android: android,
+        iOS: darwin,
+      );
+      await _plugin.initialize(
+        settings: settings,
+        onDidReceiveNotificationResponse: (_) {},
+      );
+      _initialized = true;
+
+      try {
+        tz.initializeTimeZones();
+        final info = await FlutterTimezone.getLocalTimezone();
+        tz.setLocalLocation(tz.getLocation(info.identifier));
+      } catch (_) {
+        tz.initializeTimeZones();
+        tz.setLocalLocation(tz.local);
+      }
     } catch (_) {
-      tz.initializeTimeZones();
-      tz.setLocalLocation(tz.local);
+      _failed = true;
+      // Do not rethrow: app must not crash; notifications disable gracefully.
     }
   }
 
   @override
   Future<void> requestPermission() async {
     if (kIsWeb || !await isSupported) return;
-    await initialize();
-    if (defaultTargetPlatform == TargetPlatform.iOS) {
-      await _plugin
-          .resolvePlatformSpecificImplementation<
-              IOSFlutterLocalNotificationsPlugin>()
-          ?.requestPermissions(alert: true, badge: true, sound: true);
-    }
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      await _plugin
-          .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
-          ?.requestNotificationsPermission();
+    try {
+      await initialize();
+      if (!_initialized) return;
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        await _plugin
+            .resolvePlatformSpecificImplementation<
+                IOSFlutterLocalNotificationsPlugin>()
+            ?.requestPermissions(alert: true, badge: true, sound: true);
+      }
+      if (defaultTargetPlatform == TargetPlatform.android) {
+        await _plugin
+            .resolvePlatformSpecificImplementation<
+                AndroidFlutterLocalNotificationsPlugin>()
+            ?.requestNotificationsPermission();
+      }
+    } catch (_) {
+      // Disable gracefully; do not crash.
     }
   }
 
   @override
   Future<void> scheduleDailyAt(int hour, int minute) async {
     if (kIsWeb || !await isSupported) return;
-    await initialize();
-    await cancelAll();
+    try {
+      await initialize();
+      if (!_initialized) return;
+      await _plugin.cancelAll();
 
-    final now = tz.TZDateTime.now(tz.local);
-    var scheduled = tz.TZDateTime(tz.local, now.year, now.month, now.day, hour, minute);
-    if (scheduled.isBefore(now) || scheduled.isAtSameMomentAs(now)) {
-      scheduled = scheduled.add(const Duration(days: 1));
+      final now = tz.TZDateTime.now(tz.local);
+      var scheduled = tz.TZDateTime(
+          tz.local, now.year, now.month, now.day, hour, minute);
+      if (scheduled.isBefore(now) || scheduled.isAtSameMomentAs(now)) {
+        scheduled = scheduled.add(const Duration(days: 1));
+      }
+
+      const android = AndroidNotificationDetails(
+        _channelId,
+        _channelName,
+        channelDescription: 'Daily check-in reminder',
+        importance: Importance.defaultImportance,
+      );
+      const darwin = DarwinNotificationDetails();
+      const details =
+          NotificationDetails(android: android, iOS: darwin);
+
+      await _plugin.zonedSchedule(
+        id: _dailyNotificationId,
+        title: 'Clarity',
+        body: 'Time for your daily check-in.',
+        scheduledDate: scheduled,
+        notificationDetails: details,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        matchDateTimeComponents: DateTimeComponents.time,
+      );
+    } catch (_) {
+      // Do not crash; scheduling failed.
     }
-
-    const android = AndroidNotificationDetails(
-      _channelId,
-      _channelName,
-      channelDescription: 'Daily check-in reminder',
-      importance: Importance.defaultImportance,
-    );
-    const darwin = DarwinNotificationDetails();
-    const details = NotificationDetails(android: android, iOS: darwin);
-
-    await _plugin.zonedSchedule(
-      id: _dailyNotificationId,
-      title: 'Clarity',
-      body: 'Time for your daily check-in.',
-      scheduledDate: scheduled,
-      notificationDetails: details,
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      matchDateTimeComponents: DateTimeComponents.time,
-    );
   }
 
   @override
   Future<void> cancelAll() async {
     if (kIsWeb || !await isSupported) return;
-    await _plugin.cancelAll();
+    try {
+      if (!_initialized) return;
+      await _plugin.cancelAll();
+    } catch (_) {
+      // Do not crash.
+    }
   }
 }

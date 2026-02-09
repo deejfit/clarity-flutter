@@ -62,6 +62,9 @@ class _HomeScreenState extends State<HomeScreen> {
           await _repo.recordTodayAnswer(false);
           if (mounted) _load();
         },
+        onSaveExtra: (difficulty, note) {
+          _repo.setTodayCheckInExtra(difficulty, note);
+        },
       ),
     );
   }

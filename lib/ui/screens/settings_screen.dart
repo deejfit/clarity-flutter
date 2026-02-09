@@ -44,50 +44,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _load() async {
+    // Load version and notification state independently so one failure doesn't hide the other.
+    final supported = await _notificationService.isSupported;
+    String versionBuild = '—';
+    try {
+      versionBuild = await _appInfoService.getVersionAndBuild();
+    } catch (_) {}
+
     try {
       await _notificationService.initialize();
-      final enabled = await _settingsStorage.getNotificationsEnabled();
-      final hour = await _settingsStorage.getNotificationHour();
-      final minute = await _settingsStorage.getNotificationMinute();
-      final supported = await _notificationService.isSupported;
-      final versionBuild = await _appInfoService.getVersionAndBuild();
-      if (mounted) {
-        setState(() {
-          _notificationsEnabled = enabled;
-          _notificationHour = hour;
-          _notificationMinute = minute;
-          _notificationsSupported = supported;
-          _versionBuild = versionBuild;
-          _loading = false;
-        });
-      }
     } catch (_) {
-      if (mounted) {
-        final supported = await _notificationService.isSupported;
-        if (mounted) {
-          setState(() {
-            _notificationsEnabled = false;
-            _notificationHour = 9;
-            _notificationMinute = 0;
-            _notificationsSupported = supported;
-            _versionBuild = '—';
-            _loading = false;
-          });
-        }
-      }
+      // Notifications disabled gracefully; do not crash.
+    }
+
+    bool enabled = false;
+    int hour = 9;
+    int minute = 0;
+    try {
+      enabled = await _settingsStorage.getNotificationsEnabled();
+      hour = await _settingsStorage.getNotificationHour();
+      minute = await _settingsStorage.getNotificationMinute();
+    } catch (_) {}
+
+    if (mounted) {
+      setState(() {
+        _notificationsEnabled = enabled;
+        _notificationHour = hour;
+        _notificationMinute = minute;
+        _notificationsSupported = supported;
+        _versionBuild = versionBuild;
+        _loading = false;
+      });
     }
   }
 
   Future<void> _setNotificationsEnabled(bool value) async {
-    await _settingsStorage.setNotificationsEnabled(value);
-    if (value) {
-      await _notificationService.requestPermission();
-      await _notificationService.scheduleDailyAt(
-          _notificationHour, _notificationMinute);
-    } else {
-      await _notificationService.cancelAll();
+    try {
+      await _settingsStorage.setNotificationsEnabled(value);
+      if (value) {
+        await _notificationService.requestPermission();
+        await _notificationService.scheduleDailyAt(
+            _notificationHour, _notificationMinute);
+      } else {
+        await _notificationService.cancelAll();
+      }
+      if (mounted) setState(() => _notificationsEnabled = value);
+    } catch (_) {
+      // Do not crash; leave toggle state unchanged or turn off.
+      if (mounted) setState(() => _notificationsEnabled = false);
     }
-    if (mounted) setState(() => _notificationsEnabled = value);
   }
 
   Future<void> _pickTime() async {

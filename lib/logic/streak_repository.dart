@@ -125,4 +125,14 @@ class StreakRepository {
   Future<void> recordTodayAnswer(bool sober) async {
     await _storage.recordAnswer(todayKey(), sober);
   }
+
+  /// Optional context for today (analytics only). Does not affect streak or stats.
+  Future<void> setTodayCheckInExtra(int? difficulty, String? note) async {
+    await _storage.setCheckInExtra(todayKey(), difficulty, note);
+  }
+
+  Future<({int? difficulty, String? note})> getTodayCheckInExtra() async {
+    final extra = await _storage.getCheckInExtra(todayKey());
+    return (difficulty: extra.difficulty, note: extra.note);
+  }
 }
