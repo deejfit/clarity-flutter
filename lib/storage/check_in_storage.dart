@@ -21,6 +21,8 @@ abstract class CheckInStorage {
   Future<void> recordAnswer(String date, bool sober);
   Future<CheckInExtra> getCheckInExtra(String date);
   Future<void> setCheckInExtra(String date, int? difficulty, String? note);
+  /// Batch fetch extras for many dates (e.g. for insights). Returns map date -> extra.
+  Future<Map<String, CheckInExtra>> getCheckInExtrasForDates(List<String> dates);
 }
 
 class CheckInStorageImpl implements CheckInStorage {
@@ -112,5 +114,21 @@ class CheckInStorageImpl implements CheckInStorage {
     } else {
       await prefs.remove(_keyNote(date));
     }
+  }
+
+  @override
+  Future<Map<String, CheckInExtra>> getCheckInExtrasForDates(List<String> dates) async {
+    final prefs = await _instance;
+    final result = <String, CheckInExtra>{};
+    if (prefs == null) return result;
+    for (final date in dates) {
+      final d = prefs.getInt(_keyDifficulty(date));
+      final n = prefs.getString(_keyNote(date));
+      result[date] = CheckInExtra(
+        difficulty: d != null && d >= 1 && d <= 5 ? d : null,
+        note: (n != null && n.isNotEmpty) ? n : null,
+      );
+    }
+    return result;
   }
 }

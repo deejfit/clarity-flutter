@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import '../../logic/insights_service.dart';
 import '../../logic/streak_repository.dart';
 import '../../models/app_stats.dart';
 import '../../models/streak_data.dart';
 import '../widgets/check_in_modal.dart';
+import '../widgets/insights_card.dart';
 import '../widgets/statistics_card.dart';
 import '../widgets/streak_card.dart';
 import '../widgets/streak_strip.dart';
@@ -17,8 +19,10 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final StreakRepository _repo = StreakRepository();
+  final InsightsService _insightsService = InsightsService();
   StreakData? _streakData;
   AppStats? _stats;
+  InsightsResult? _insightsResult;
   bool _answeredToday = false;
   bool _loading = true;
 
@@ -27,10 +31,12 @@ class _HomeScreenState extends State<HomeScreen> {
       final streakData = await _repo.getStreakData();
       final stats = await _repo.getStats();
       final answered = await _repo.isAnsweredToday();
+      final insightsResult = await _insightsService.getInsights();
       if (mounted) {
         setState(() {
           _streakData = streakData;
           _stats = stats;
+          _insightsResult = insightsResult;
           _answeredToday = answered;
           _loading = false;
         });
@@ -41,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _streakData = StreakData(currentStreak: 0, streakStartDate: null, streakDates: []);
           _stats = const AppStats(daysAlcoholFree: 0, bestStreak: 0, checkInsCompleted: 0, currentRunStarted: null);
+          _insightsResult = const InsightsResult(hasSufficientData: false);
           _answeredToday = false;
           _loading = false;
         });
@@ -106,6 +113,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       soberDatesSet: _streakData!.streakDates.toSet(),
                     ),
                   if (_stats != null) StatisticsCard(stats: _stats!),
+                  if (_insightsResult != null) InsightsCard(result: _insightsResult!),
                   const SizedBox(height: 24),
                 ],
               ),
